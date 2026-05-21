@@ -7,7 +7,18 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "submissions")
+@Table(
+    name = "submissions",
+    indexes = {
+        @Index(name = "idx_submission_task", columnList = "task_id"),
+        @Index(name = "idx_submission_student", columnList = "student_id"),
+        @Index(name = "idx_submission_status", columnList = "status")
+    },
+    uniqueConstraints = {
+        // One submission per student per task — enforced at DB level
+        @UniqueConstraint(name = "uq_submission_task_student", columnNames = {"task_id", "student_id"})
+    }
+)
 @Getter
 @Setter
 @NoArgsConstructor

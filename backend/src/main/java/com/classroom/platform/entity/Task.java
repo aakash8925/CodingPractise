@@ -6,7 +6,14 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "tasks")
+@Table(
+    name = "tasks",
+    indexes = {
+        @Index(name = "idx_task_classroom", columnList = "classroom_id"),
+        @Index(name = "idx_task_created_by", columnList = "created_by"),
+        @Index(name = "idx_task_deadline", columnList = "deadline")
+    }
+)
 @Getter
 @Setter
 @NoArgsConstructor

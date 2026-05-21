@@ -8,7 +8,12 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "classrooms")
+@Table(
+    name = "classrooms",
+    indexes = {
+        @Index(name = "idx_classroom_teacher", columnList = "teacher_id")
+    }
+)
 @Getter
 @Setter
 @NoArgsConstructor

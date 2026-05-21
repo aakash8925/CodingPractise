@@ -11,9 +11,11 @@ import com.classroom.platform.repository.ClassroomRepository;
 import com.classroom.platform.repository.TaskRepository;
 import com.classroom.platform.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -28,18 +30,18 @@ public class TaskService {
     private User getCurrentUser() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Authenticated user not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user not found"));
     }
 
     @Transactional
     public TaskResponse createTask(TaskRequest request) {
         User user = getCurrentUser();
         if (user.getRole() != Role.TEACHER && user.getRole() != Role.ADMIN) {
-            throw new RuntimeException("Only teachers or admins can create tasks");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only teachers or admins can create tasks");
         }
 
         Classroom classroom = classroomRepository.findById(request.getClassroomId())
-                .orElseThrow(() -> new RuntimeException("Classroom not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Classroom not found"));
 
         Task task = Task.builder()
                 .title(request.getTitle())
@@ -53,15 +55,19 @@ public class TaskService {
         return mapToResponse(saved);
     }
 
+    // readOnly=true: tells Hibernate to skip dirty checking on all entities → faster, less memory
+    @Transactional(readOnly = true)
     public List<TaskResponse> getTasksByClassroom(Long classroomId) {
         return taskRepository.findByClassroomId(classroomId).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public TaskResponse getTaskById(Long taskId) {
-        Task task = taskRepository.findById(taskId)
-                .orElseThrow(() -> new RuntimeException("Task not found"));
+        // Use JOIN FETCH query to avoid N+1
+        Task task = taskRepository.findByIdWithDetails(taskId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Task not found"));
         return mapToResponse(task);
     }
 

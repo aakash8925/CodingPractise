@@ -9,9 +9,11 @@ import com.classroom.platform.repository.SubmissionRepository;
 import com.classroom.platform.repository.TaskRepository;
 import com.classroom.platform.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -28,18 +30,19 @@ public class SubmissionService {
     private User getCurrentUser() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Authenticated user not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user not found"));
     }
 
     @Transactional
     public SubmissionResponse saveOrSubmit(SubmissionRequest request) {
         User student = getCurrentUser();
         if (student.getRole() != Role.STUDENT) {
-            throw new RuntimeException("Only students can submit tasks");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only students can submit tasks");
         }
 
-        Task task = taskRepository.findById(request.getTaskId())
-                .orElseThrow(() -> new RuntimeException("Task not found"));
+        // Use JOIN FETCH query — avoids extra DB hits for task.classroom and task.createdBy
+        Task task = taskRepository.findByIdWithDetails(request.getTaskId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Task not found"));
 
         Optional<Submission> existing = submissionRepository.findByTaskIdAndStudentId(task.getId(), student.getId());
         Submission submission = existing.orElseGet(() -> Submission.builder()
@@ -47,10 +50,11 @@ public class SubmissionService {
                 .task(task)
                 .build());
 
-        if ((submission.getStatus() == SubmissionStatus.SUBMITTED || submission.getStatus() == SubmissionStatus.REVIEWED) && !request.isDraft()) {
-             if (LocalDateTime.now().isAfter(task.getDeadline())) {
-                 throw new RuntimeException("Deadline has passed. Cannot modify submissions.");
-             }
+        // Block editing a reviewed/submitted submission after deadline (unless it's a draft save)
+        if (!request.isDraft() &&
+            (submission.getStatus() == SubmissionStatus.SUBMITTED || submission.getStatus() == SubmissionStatus.REVIEWED) &&
+            LocalDateTime.now().isAfter(task.getDeadline())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Deadline has passed. Cannot modify submission.");
         }
 
         submission.setHtmlCode(request.getHtmlCode());
@@ -60,11 +64,9 @@ public class SubmissionService {
         if (request.isDraft()) {
             submission.setStatus(SubmissionStatus.DRAFT);
         } else {
-            if (LocalDateTime.now().isAfter(task.getDeadline())) {
-                submission.setStatus(SubmissionStatus.LATE);
-            } else {
-                submission.setStatus(SubmissionStatus.SUBMITTED);
-            }
+            submission.setStatus(LocalDateTime.now().isAfter(task.getDeadline())
+                    ? SubmissionStatus.LATE
+                    : SubmissionStatus.SUBMITTED);
             submission.setSubmittedAt(LocalDateTime.now());
         }
 
@@ -77,10 +79,12 @@ public class SubmissionService {
         User teacher = getCurrentUser();
 
         Submission submission = submissionRepository.findById(submissionId)
-                .orElseThrow(() -> new RuntimeException("Submission not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Submission not found"));
 
-        if (!submission.getTask().getClassroom().getTeacher().getId().equals(teacher.getId()) && teacher.getRole() != Role.ADMIN) {
-            throw new RuntimeException("You are not authorized to grade this submission");
+        // Authorization check: must be the classroom's teacher or an admin
+        boolean isClassroomTeacher = submission.getTask().getClassroom().getTeacher().getId().equals(teacher.getId());
+        if (!isClassroomTeacher && teacher.getRole() != Role.ADMIN) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not authorized to grade this submission");
         }
 
         submission.setMarks(request.getMarks());
@@ -91,27 +95,33 @@ public class SubmissionService {
         return mapToResponse(updated);
     }
 
+    @Transactional(readOnly = true)
     public SubmissionResponse getMySubmissionForTask(Long taskId) {
         User student = getCurrentUser();
         Submission submission = submissionRepository.findByTaskIdAndStudentId(taskId, student.getId())
-                .orElseThrow(() -> new RuntimeException("No submission found for this task"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No submission found for this task"));
         return mapToResponse(submission);
     }
 
+    @Transactional(readOnly = true)
     public List<SubmissionResponse> getSubmissionsForTask(Long taskId) {
+        // Single optimized JOIN FETCH query instead of N+1
         return submissionRepository.findByTaskId(taskId).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public SubmissionResponse getSubmissionById(Long submissionId) {
         Submission submission = submissionRepository.findById(submissionId)
-                .orElseThrow(() -> new RuntimeException("Submission not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Submission not found"));
         return mapToResponse(submission);
     }
 
+    @Transactional(readOnly = true)
     public List<SubmissionResponse> getAllSubmissions() {
-        return submissionRepository.findAll().stream()
+        // Single optimized JOIN FETCH query — avoids unbounded N+1 on all submissions
+        return submissionRepository.findAllWithDetails().stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }

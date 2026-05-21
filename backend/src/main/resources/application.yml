@@ -6,14 +6,29 @@ spring:
     username: ${DB_USERNAME:aakash}
     password: ${DB_PASSWORD:akash@123}
     driver-class-name: org.postgresql.Driver
+    # HikariCP pool tuning — Render free Postgres allows ~25 connections
+    # Formula: pool size = (core_count * 2) + disk_spindles. We use 5 to stay well under the 25-connection limit.
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
+      connection-timeout: 20000   # 20s max wait for a connection before failing fast
+      idle-timeout: 300000        # Release idle connections after 5 min
+      max-lifetime: 1200000       # Recycle connections every 20 min (avoids stale connections)
+      leak-detection-threshold: 60000  # Warn if a connection is held > 60s (catches bugs)
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false   # Disable in production — logs are expensive and waste memory
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        # Batch inserts/updates — reduces DB round trips when saving multiple entities
+        jdbc.batch_size: 20
+        order_inserts: true
+        order_updates: true
+        # Second-level cache disabled (no Redis on free tier) — keep it simple
+        cache.use_second_level_cache: false
 
 server:
   port: 8080
