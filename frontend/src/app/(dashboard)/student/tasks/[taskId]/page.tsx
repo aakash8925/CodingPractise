@@ -50,9 +50,9 @@ export default function StudentTaskWorkspacePage() {
         setJsCode(subData.jsCode || "");
       } catch {
         // No submission exists yet. Set boilerplate.
-        setHtmlCode("<h1>" + taskData.title + "</h1>\n<p>Start writing your code here...</p>");
+        setHtmlCode("<!-- Note: The CSS & JS tabs are linked automatically. You don't need to write <link> or <script> tags! -->\n<h1>" + taskData.title + "</h1>\n<p>Start writing your code here...</p>");
         setCssCode("h1 {\n  color: #0ea5e9;\n}");
-        setJsCode("console.log('Workspace initialized!');");
+        setJsCode("// Write your JavaScript here. It runs automatically in the preview!\nconsole.log('Workspace initialized!');");
       }
     } catch (error) {
       console.error("Failed to load workspace data", error);

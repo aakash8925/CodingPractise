@@ -11,9 +11,9 @@ export default function SandboxPage() {
   const [activeTab, setActiveTab] = useState<Tab>("html");
   
   // Code States
-  const [htmlCode, setHtmlCode] = useState("<h1>Hello from CodeRoom!</h1>\\n<p>Start styling me with CSS.</p>");
-  const [cssCode, setCssCode] = useState("h1 {\\n  color: #0ea5e9;\\n}\\n\\nbody {\\n  background-color: #f8fafc;\\n}");
-  const [jsCode, setJsCode] = useState("console.log('Sandbox initialized!');");
+  const [htmlCode, setHtmlCode] = useState("<!-- Note: The CSS & JS tabs are linked automatically. You don't need to write <link> or <script> tags! -->\n<h1>Hello from CodeRoom!</h1>\n<p>Start styling me with CSS.</p>");
+  const [cssCode, setCssCode] = useState("h1 {\n  color: #0ea5e9;\n}\n\nbody {\n  background-color: #f8fafc;\n}");
+  const [jsCode, setJsCode] = useState("// Write your JavaScript here. It runs automatically in the preview!\nconsole.log('Sandbox initialized!');");
 
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col gap-4">
