@@ -7,12 +7,26 @@ services:
     plan: free
     healthCheckPath: /v3/api-docs
     envVars:
-      - key: DB_URL
-        sync: false
+      - key: DB_HOST
+        fromDatabase:
+          name: classroom-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: classroom-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: classroom-db
+          property: database
       - key: DB_USERNAME
-        sync: false
+        fromDatabase:
+          name: classroom-db
+          property: user
       - key: DB_PASSWORD
-        sync: false
+        fromDatabase:
+          name: classroom-db
+          property: password
       - key: JWT_SECRET
         generateValue: true
 
@@ -30,3 +44,9 @@ services:
           envVarKey: RENDER_EXTERNAL_URL
       - key: NODE_OPTIONS
         value: "--max-old-space-size=256"
+
+databases:
+  - name: classroom-db
+    databaseName: classroom_db
+    user: classroom_user
+    plan: free
