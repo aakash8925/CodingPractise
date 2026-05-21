@@ -1,15 +1,19 @@
 package com.classroom.platform.service;
 
 import com.classroom.platform.dto.*;
+import com.classroom.platform.entity.Role;
 import com.classroom.platform.entity.User;
 import com.classroom.platform.repository.UserRepository;
 import com.classroom.platform.security.CustomUserDetails;
 import com.classroom.platform.security.JwtService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @RequiredArgsConstructor
@@ -20,13 +24,19 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
 
     public AuthResponse register(RegisterRequest request) {
+        // SECURITY FIX: Block self-registration as ADMIN — admins must be seeded directly in the DB.
+        if (request.getRole() == Role.ADMIN) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot self-register as ADMIN");
+        }
+
+        // SECURITY FIX: Generic error message to prevent user enumeration
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email already exists");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Registration failed. Please try a different email.");
         }
 
         User user = User.builder()
                 .name(request.getName())
-                .email(request.getEmail())
+                .email(request.getEmail().toLowerCase().trim())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .role(request.getRole())
                 .active(true)
@@ -46,15 +56,26 @@ public class AuthService {
     }
 
     public AuthResponse login(LoginRequest request) {
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        request.getEmail(),
-                        request.getPassword()
-                )
-        );
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            request.getEmail().toLowerCase().trim(),
+                            request.getPassword()
+                    )
+            );
+        } catch (BadCredentialsException e) {
+            // SECURITY FIX: Never leak whether the email or the password was wrong (user enumeration)
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
+        }
 
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = userRepository.findByEmail(request.getEmail().toLowerCase().trim())
+                // Should never happen since auth passed, but guard anyway
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password"));
+
+        if (!user.isActive()) {
+            // SECURITY FIX: Block disabled accounts from logging in
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Account is disabled. Contact admin.");
+        }
 
         CustomUserDetails userDetails = new CustomUserDetails(user);
 
@@ -69,23 +90,30 @@ public class AuthService {
     }
 
     public AuthResponse refreshToken(String refreshToken) {
-        String email = jwtService.extractUsername(refreshToken);
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        try {
+            String email = jwtService.extractUsername(refreshToken);
+            // SECURITY FIX: Generic 401 — don't reveal whether token was malformed, expired, or user missing
+            User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired token"));
 
-        CustomUserDetails userDetails = new CustomUserDetails(user);
+            CustomUserDetails userDetails = new CustomUserDetails(user);
 
-        if (jwtService.isTokenValid(refreshToken, userDetails)) {
-            String accessToken = jwtService.generateToken(userDetails);
-            String newRefreshToken = jwtService.generateRefreshToken(userDetails);
+            if (jwtService.isTokenValid(refreshToken, userDetails)) {
+                String accessToken = jwtService.generateToken(userDetails);
+                String newRefreshToken = jwtService.generateRefreshToken(userDetails);
 
-            return AuthResponse.builder()
-                    .accessToken(accessToken)
-                    .refreshToken(newRefreshToken)
-                    .user(mapToUserDto(user))
-                    .build();
+                return AuthResponse.builder()
+                        .accessToken(accessToken)
+                        .refreshToken(newRefreshToken)
+                        .user(mapToUserDto(user))
+                        .build();
+            }
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            // SECURITY FIX: Swallow internal JWT exception details — never leak token structure info
         }
-        throw new RuntimeException("Invalid refresh token");
+        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired token");
     }
 
     private UserDto mapToUserDto(User user) {

@@ -28,7 +28,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private Bucket resolveBucket(HttpServletRequest request) {
         String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isEmpty()) {
+        if (ip != null && !ip.isEmpty()) {
+            // SECURITY FIX: X-Forwarded-For can be a chain like "client, proxy1, proxy2".
+            // Always use the first (leftmost) IP which is the real client IP.
+            ip = ip.split(",")[0].trim();
+        } else {
             ip = request.getRemoteAddr();
         }
         return cache.computeIfAbsent(ip, k -> createNewBucket());

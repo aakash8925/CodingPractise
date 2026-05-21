@@ -2,7 +2,10 @@ import axios from 'axios';
 import { useAuthStore } from '@/store/authStore';
 
 const api = axios.create({
-  baseURL: 'http://localhost:8080/api',
+  // SECURITY FIX: Never hardcode the backend URL — use the environment variable
+  baseURL: process.env.NEXT_PUBLIC_API_URL
+    ? `${process.env.NEXT_PUBLIC_API_URL}/api`
+    : 'http://localhost:8080/api',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -33,9 +36,12 @@ api.interceptors.response.use(
           throw new Error('No refresh token available');
         }
 
-        const response = await axios.post('http://localhost:8080/api/auth/refresh', {
-          refreshToken: state.refreshToken,
-        });
+        const response = await axios.post(
+          process.env.NEXT_PUBLIC_API_URL
+            ? `${process.env.NEXT_PUBLIC_API_URL}/api/auth/refresh`
+            : 'http://localhost:8080/api/auth/refresh',
+          { refreshToken: state.refreshToken }
+        );
 
         const { accessToken, refreshToken, user } = response.data;
 
