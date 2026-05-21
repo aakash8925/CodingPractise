@@ -8,25 +8,15 @@ services:
     healthCheckPath: /api/health
     envVars:
       - key: DB_HOST
-        fromDatabase:
-          name: classroom-db
-          property: host
+        sync: false
       - key: DB_PORT
-        fromDatabase:
-          name: classroom-db
-          property: port
+        sync: false
       - key: DB_NAME
-        fromDatabase:
-          name: classroom-db
-          property: database
+        sync: false
       - key: DB_USERNAME
-        fromDatabase:
-          name: classroom-db
-          property: user
+        sync: false
       - key: DB_PASSWORD
-        fromDatabase:
-          name: classroom-db
-          property: password
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: CORS_ALLOWED_ORIGINS
@@ -49,9 +39,3 @@ services:
           envVarKey: RENDER_EXTERNAL_URL
       - key: NODE_OPTIONS
         value: "--max-old-space-size=256"
-
-databases:
-  - name: classroom-db
-    databaseName: classroom_db
-    user: classroom_user
-    plan: free
