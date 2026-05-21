@@ -8,34 +8,32 @@ services:
     healthCheckPath: /api/health
     envVars:
       - key: DB_HOST
-        sync: false
+        fromDatabase:
+          name: classroom-db
+          property: host
       - key: DB_PORT
-        sync: false
+        fromDatabase:
+          name: classroom-db
+          property: port
       - key: DB_NAME
-        sync: false
+        fromDatabase:
+          name: classroom-db
+          property: database
       - key: DB_USERNAME
-        sync: false
+        fromDatabase:
+          name: classroom-db
+          property: user
       - key: DB_PASSWORD
-        sync: false
+        fromDatabase:
+          name: classroom-db
+          property: password
       - key: JWT_SECRET
         generateValue: true
       - key: CORS_ALLOWED_ORIGINS
-        fromService:
-          type: web
-          name: coding-classroom-frontend
-          envVarKey: RENDER_EXTERNAL_URL
+        sync: false # Put your Vercel URL here (e.g. https://your-app.vercel.app)
 
-  - type: web
-    name: coding-classroom-frontend
-    env: node
-    buildCommand: cd frontend && npm install && npm run build
-    startCommand: cd frontend && npm run start
+databases:
+  - name: classroom-db
+    databaseName: classroom_db
+    user: classroom_user
     plan: free
-    envVars:
-      - key: NEXT_PUBLIC_API_URL
-        fromService:
-          type: web
-          name: coding-classroom-api
-          envVarKey: RENDER_EXTERNAL_URL
-      - key: NODE_OPTIONS
-        value: "--max-old-space-size=256"
