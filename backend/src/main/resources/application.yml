@@ -25,3 +25,13 @@ jwt:
 
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+
+# Actuator — expose ONLY health endpoint. Never expose env, beans, etc.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never  # Don't leak DB credentials or internals publicly

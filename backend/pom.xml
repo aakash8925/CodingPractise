@@ -90,6 +90,12 @@
             <version>2.5.0</version>
         </dependency>
 
+        <!-- Actuator — health check endpoint for UptimeRobot -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
         <!-- Rate Limiting -->
         <dependency>
             <groupId>com.bucket4j</groupId>
