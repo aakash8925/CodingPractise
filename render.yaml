@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: coding-classroom-api
+    env: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /v3/api-docs
+    envVars:
+      - key: DB_URL
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+
+  - type: web
+    name: coding-classroom-frontend
+    env: node
+    buildCommand: cd frontend && npm install && npm run build
+    startCommand: cd frontend && npm run start
+    plan: free
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: coding-classroom-api
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: NODE_OPTIONS
+        value: "--max-old-space-size=256"
